@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>TRACK-BACK — Benang Theseus Digital</title>
+
+<!-- PWA Configuration -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff6b3d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TrackBack">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="TrackBack">
+<meta name="description" content="Benang Theseus digital - aplikasi pelacak jejak GPS untuk tidak nyasar di tempat asing">
+
+<!-- Apple touch icons -->
+<link rel="apple-touch-icon" href="icon-apple.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0c1117;
+    --bg-elevated: #161c25;
+    --bg-card: #1d2532;
+    --border: #2a3442;
+    --text: #e8ecf2;
+    --text-dim: #8b95a7;
+    --accent: #ff6b3d;
+    --accent-glow: #ff6b3daa;
+    --gold: #d4a55c;
+    --green: #4ade80;
+    --red: #ef4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    /* Disable text selection untuk feel native app */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Safe area untuk iPhone notch */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Allow text selection di input */
+  input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  body {
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(255, 107, 61, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 100% 100%, rgba(212, 165, 92, 0.05) 0%, transparent 40%);
+    background-attachment: fixed;
+  }
+
+  /* Topographic line pattern background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.03;
+    background-image:
+      repeating-linear-gradient(0deg, var(--text) 0, var(--text) 1px, transparent 1px, transparent 60px),
+      repeating-linear-gradient(90deg, var(--text) 0, var(--text) 1px, transparent 1px, transparent 60px);
+  }
+
+  .container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 16px 40px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Header */
+  header {
+    padding: 28px 0 20px;
+    position: relative;
+  }
+
+  .header-deco {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+  }
+
+  .header-deco-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, var(--border), transparent);
+  }
+
+  .compass-icon {
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .compass-icon::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 2px;
+    height: 10px;
+    background: var(--accent);
+    transform: translate(-50%, -50%) rotate(35deg);
+    transform-origin: center;
+  }
+
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 52px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    margin-bottom: 4px;
+  }
+
+  .logo .dash {
+    color: var(--accent);
+    font-style: italic;
+  }
+
+  .tagline {
+    font-family: 'DM Serif Display', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+
+  /* Status Bar */
+  .status-bar {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+  }
+
+  .status-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s;
+  }
+
+  .status-dot.tracking {
+    background: var(--green);
+    box-shadow: 0 0 0 0 var(--green);
+    animation: pulse 1.5s infinite;
+  }
+
+  .status-dot.returning {
+    background: var(--accent);
+    box-shadow: 0 0 0 0 var(--accent);
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 currentColor; }
+    70% { box-shadow: 0 0 0 8px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+
+  .status-text {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+  .status-text strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .status-right {
+    color: var(--text-dim);
+    font-size: 10px;
+  }
+
+  /* Main Action Card */
+  .main-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px 24px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .main-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--accent), transparent);
+  }
+
+  .card-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 24px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .card-title em {
+    color: var(--accent);
+  }
+
+  .card-description {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 20px;
+  }
+
+  /* Big Button */
+  .big-button {
+    width: 100%;
+    padding: 18px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .big-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px var(--accent-glow);
+  }
+
+  .big-button:active {
+    transform: translateY(0);
+  }
+
+  .big-button.stop {
+    background: var(--red);
+  }
+
+  .big-button.stop:hover {
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4);
+  }
+
+  .big-button.return {
+    background: var(--gold);
+    color: var(--bg);
+  }
+
+  .big-button.return:hover {
+    box-shadow: 0 8px 24px rgba(212, 165, 92, 0.4);
+  }
+
+  .big-button .icon {
+    font-size: 20px;
+  }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .small-button {
+    padding: 12px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .small-button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .small-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .stat-box {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 12px;
+    text-align: center;
+    transition: border-color 0.3s;
+  }
+
+  .stat-box.highlight {
+    border-color: var(--accent);
+  }
+
+  .stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  .stat-value .unit {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-left: 2px;
+    font-weight: 400;
+  }
+
+  /* Map */
+  .map-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 16px;
+    position: relative;
+  }
+
+  .map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px 6px;
+  }
+
+  .map-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+  }
+
+  .map-legend {
+    display: flex;
+    gap: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .legend-dot.start { background: var(--green); }
+  .legend-dot.current { background: var(--accent); }
+  .legend-dot.path { background: var(--gold); }
+
+  #map {
+    height: 360px;
+    width: 100%;
+    border-radius: 4px;
+    background: var(--bg);
+    filter: brightness(0.9) saturate(0.8);
+  }
+
+  /* Direction Panel */
+  .direction-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+    display: none;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .direction-panel.show {
+    display: block;
+    animation: fadeUp 0.4s ease-out;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .direction-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255, 107, 61, 0.1) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .direction-arrow-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+    position: relative;
+  }
+
+  .compass-large {
+    width: 140px;
+    height: 140px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    position: relative;
+    background: var(--bg);
+    box-shadow:
+      inset 0 0 30px rgba(255, 107, 61, 0.1),
+      0 0 0 8px var(--bg-card),
+      0 0 0 9px var(--border);
+  }
+
+  .compass-large::before {
+    content: 'N';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+
+  .compass-large::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+  }
+
+  .arrow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 60px;
+    background: linear-gradient(to top, transparent, var(--accent));
+    transform-origin: bottom center;
+    transform: translate(-50%, -100%) rotate(0deg);
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .arrow::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 14px solid var(--accent);
+    filter: drop-shadow(0 0 4px var(--accent-glow));
+  }
+
+  .direction-info {
+    text-align: center;
+    position: relative;
+  }
+
+  .direction-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .direction-distance {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px;
+    line-height: 1;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .direction-distance .unit {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-left: 4px;
+  }
+
+  .direction-bearing {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    margin-top: 6px;
+  }
+
+  /* Saved Trips */
+  .saved-section {
+    margin-bottom: 16px;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+    padding: 0 4px;
+  }
+
+  .section-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+  }
+
+  .section-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .saved-trip {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .saved-trip:hover {
+    border-color: var(--accent);
+    transform: translateX(2px);
+  }
+
+  .trip-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .trip-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trip-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .trip-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .trip-btn {
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .trip-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .trip-btn.delete:hover {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  /* Empty States */
+  .empty-state {
+    text-align: center;
+    padding: 24px 16px;
+    color: var(--text-dim);
+    font-style: italic;
+    font-family: 'DM Serif Display', serif;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 32px 0 16px;
+    margin-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  .footer-ornament {
+    font-family: 'DM Serif Display', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  .footer-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    opacity: 0.6;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    z-index: 9999;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-8px);
+  }
+
+  /* Modal for naming */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+  }
+
+  .modal-overlay.show {
+    display: flex;
+  }
+
+  .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .modal h3 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+
+  .modal p {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .modal input {
+    width: 100%;
+    padding: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    margin-bottom: 16px;
+    outline: none;
+  }
+
+  .modal input:focus {
+    border-color: var(--accent);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* Custom marker styles */
+  .leaflet-popup-content-wrapper {
+    background: var(--bg-elevated);
+    color: var(--text);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+  }
+
+  .leaflet-popup-content {
+    margin: 10px 14px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+  }
+
+  .leaflet-popup-tip {
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent);
+  }
+
+  .marker-start {
+    background: var(--green);
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--green);
+  }
+
+  .marker-current {
+    background: var(--accent);
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 16px var(--accent);
+    animation: glow 1.5s ease-in-out infinite;
+  }
+
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 16px var(--accent); }
+    50% { box-shadow: 0 0 28px var(--accent), 0 0 40px var(--accent-glow); }
+  }
+
+  /* Install Banner */
+  .install-banner {
+    position: fixed;
+    bottom: env(safe-area-inset-bottom, 0);
+    left: 0;
+    right: 0;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--accent);
+    padding: 14px 20px;
+    display: none;
+    align-items: center;
+    gap: 14px;
+    z-index: 9998;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
+    animation: slideUpBanner 0.4s ease-out;
+  }
+
+  .install-banner.show {
+    display: flex;
+  }
+
+  @keyframes slideUpBanner {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .install-banner-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 22px;
+  }
+
+  .install-banner-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .install-banner-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  .install-banner-subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .install-banner-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .install-btn {
+    padding: 8px 14px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+
+  .install-btn.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  /* Splash screen for first load */
+  .splash {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    transition: opacity 0.5s ease-out;
+  }
+
+  .splash.hide {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .splash-compass {
+    width: 80px;
+    height: 80px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    position: relative;
+    margin-bottom: 24px;
+    animation: spin 2s linear infinite;
+  }
+
+  .splash-compass::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 14px solid var(--accent);
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .splash-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px;
+    margin-bottom: 6px;
+  }
+
+  .splash-title .dash {
+    color: var(--accent);
+  }
+
+  .splash-tagline {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+  }
+
+  /* iOS install instructions modal */
+  .ios-instructions {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 10000;
+    display: none;
+    align-items: flex-end;
+    padding: 20px;
+  }
+
+  .ios-instructions.show {
+    display: flex;
+    animation: fadeIn 0.3s;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .ios-modal {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+    position: relative;
+    animation: slideUpModal 0.4s ease-out;
+  }
+
+  @keyframes slideUpModal {
+    from { transform: translateY(40px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .ios-modal::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    right: 24px;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 10px solid var(--bg-elevated);
+  }
+
+  .ios-modal h3 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    margin-bottom: 4px;
+  }
+
+  .ios-modal .subtitle {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  .ios-step {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ios-step:last-of-type {
+    border-bottom: none;
+  }
+
+  .ios-step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .ios-step-content {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .ios-step-content strong {
+    color: var(--accent);
+  }
+
+  .ios-step-icon {
+    display: inline-block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 12px;
+    margin: 0 2px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Splash Screen -->
+<div class="splash" id="splash">
+  <div class="splash-compass"></div>
+  <h1 class="splash-title">Track<span class="dash">·</span>Back</h1>
+  <div class="splash-tagline">Memuat aplikasi...</div>
+</div>
+
+<!-- Install Banner -->
+<div class="install-banner" id="installBanner">
+  <div class="install-banner-icon">⌖</div>
+  <div class="install-banner-text">
+    <div class="install-banner-title">Install Track-Back</div>
+    <div class="install-banner-subtitle">Buka langsung dari home screen</div>
+  </div>
+  <div class="install-banner-actions">
+    <button class="install-btn secondary" onclick="dismissInstall()">Nanti</button>
+    <button class="install-btn" onclick="triggerInstall()">Install</button>
+  </div>
+</div>
+
+<!-- iOS Install Instructions -->
+<div class="ios-instructions" id="iosInstructions">
+  <div class="ios-modal">
+    <h3>Install di iPhone</h3>
+    <p class="subtitle">Ikuti 3 langkah singkat di bawah:</p>
+    <div class="ios-step">
+      <div class="ios-step-num">1</div>
+      <div class="ios-step-content">
+        Tap tombol <strong>Share</strong> <span class="ios-step-icon">⎙</span> di toolbar bagian bawah Safari
+      </div>
+    </div>
+    <div class="ios-step">
+      <div class="ios-step-num">2</div>
+      <div class="ios-step-content">
+        Scroll ke bawah dan pilih <strong>"Add to Home Screen"</strong> <span class="ios-step-icon">⊕</span>
+      </div>
+    </div>
+    <div class="ios-step">
+      <div class="ios-step-num">3</div>
+      <div class="ios-step-content">
+        Tap <strong>"Add"</strong> di pojok kanan atas — selesai!
+      </div>
+    </div>
+    <button class="install-btn" style="width:100%; margin-top:8px; padding:14px;" onclick="closeIosInstructions()">Mengerti</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <header>
+    <div class="header-deco">
+      <div class="compass-icon"></div>
+      <span>EST. 2026 / NAVIGATION CO.</span>
+      <div class="header-deco-line"></div>
+    </div>
+    <h1 class="logo">Track<span class="dash">·</span>Back</h1>
+    <p class="tagline">— benang Theseus, dalam genggaman —</p>
+  </header>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="status-left">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-text" id="statusText">Siap merekam — <strong>tap mulai</strong></span>
+    </div>
+    <div class="status-right" id="gpsStatus">GPS · IDLE</div>
+  </div>
+
+  <!-- Main Action -->
+  <div class="main-card">
+    <div class="card-label">— Kontrol Utama —</div>
+    <h2 class="card-title">Tinggalkan <em>jejakmu</em>.</h2>
+    <p class="card-description">Tap MULAI saat masuk tempat asing. Tunggu GPS stabil (status hijau "GOOD" atau lebih), lalu mulai berjalan. Saat siap pulang, tap PULANG dan ikuti panah.</p>
+
+    <button class="big-button" id="startBtn" onclick="startTracking()">
+      <span class="icon">●</span>
+      <span>Mulai Merekam</span>
+    </button>
+
+    <div class="button-row">
+      <button class="small-button" id="returnBtn" onclick="startReturn()" disabled>↺ Pulang</button>
+      <button class="small-button" id="saveBtn" onclick="openSaveModal()" disabled>⬇ Simpan Trip</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-box" id="statPoints">
+      <div class="stat-label">Titik Jejak</div>
+      <div class="stat-value">0</div>
+    </div>
+    <div class="stat-box" id="statDistance">
+      <div class="stat-label">Total Jarak</div>
+      <div class="stat-value">0<span class="unit">m</span></div>
+    </div>
+    <div class="stat-box" id="statTime">
+      <div class="stat-label">Durasi</div>
+      <div class="stat-value">0<span class="unit">m</span></div>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div class="map-section">
+    <div class="map-header">
+      <span class="map-title">— Peta Jejak —</span>
+      <div class="map-legend">
+        <div class="legend-item"><div class="legend-dot start"></div>Awal</div>
+        <div class="legend-item"><div class="legend-dot current"></div>Sekarang</div>
+        <div class="legend-item"><div class="legend-dot path"></div>Jejak</div>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <!-- Direction Panel (shown during return) -->
+  <div class="direction-panel" id="directionPanel">
+    <div class="card-label" style="text-align:center; margin-bottom:12px">— Mode Pulang Aktif —</div>
+    <div class="direction-arrow-wrap">
+      <div class="compass-large">
+        <div class="arrow" id="directionArrow"></div>
+      </div>
+    </div>
+    <div class="direction-info">
+      <div class="direction-label">Jarak ke Titik Awal</div>
+      <div class="direction-distance" id="returnDistance">0<span class="unit">m</span></div>
+      <div class="direction-bearing" id="returnBearing">— • —</div>
+    </div>
+  </div>
+
+  <!-- Saved Trips -->
+  <div class="saved-section">
+    <div class="section-header">
+      <span class="section-name">— Trip Tersimpan</span>
+      <span class="section-count" id="savedCount">00</span>
+    </div>
+    <div id="savedList"></div>
+  </div>
+
+  <footer>
+    <div class="footer-ornament">"⌖ Tidak ada lagi yang nyasar di tempat asing."</div>
+    <div class="footer-text">TRACK-BACK · Tugas Inovasi Lokal · 2026</div>
+  </footer>
+</div>
+
+<!-- Save Modal -->
+<div class="modal-overlay" id="saveModal">
+  <div class="modal">
+    <h3>Simpan Trip</h3>
+    <p>Beri nama trip ini agar mudah dicari kembali.</p>
+    <input
+      type="text"
+      id="tripNameInput"
+      placeholder="Misal: Pasar Tanah Abang"
+      maxlength="40"
+      onkeydown="if(event.key==='Enter') confirmSave()"
+    />
+    <div class="modal-actions">
+      <button class="small-button" onclick="closeSaveModal()">Batal</button>
+      <button class="small-button" style="background:var(--accent); color:white; border-color:var(--accent)" onclick="confirmSave()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   TRACK-BACK — Aplikasi Pelacak Jejak GPS
+   ========================================================= */
+
+// State
+let map = null;
+let isTracking = false;
+let isReturning = false;
+let trackPath = [];           // [{lat, lng, ts}]
+let watchId = null;
+let pathPolyline = null;
+let startMarker = null;
+let currentMarker = null;
+let returnLine = null;
+let startTime = null;
+let durationInterval = null;
+let currentPosition = null;
+let lastDeviceHeading = 0;
+let demoInterval = null;
+
+// Elements
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const gpsStatus = document.getElementById('gpsStatus');
+const startBtn = document.getElementById('startBtn');
+const returnBtn = document.getElementById('returnBtn');
+const saveBtn = document.getElementById('saveBtn');
+const directionPanel = document.getElementById('directionPanel');
+const directionArrow = document.getElementById('directionArrow');
+const returnDistance = document.getElementById('returnDistance');
+const returnBearing = document.getElementById('returnBearing');
+const savedList = document.getElementById('savedList');
+const savedCount = document.getElementById('savedCount');
+const toast = document.getElementById('toast');
+const saveModal = document.getElementById('saveModal');
+const tripNameInput = document.getElementById('tripNameInput');
+
+/* =========================================================
+   MAP INIT
+   ========================================================= */
+function initMap() {
+  // Default center: Jakarta
+  map = L.map('map', {
+    center: [-6.2088, 106.8456],
+    zoom: 15,
+    zoomControl: true,
+    attributionControl: false
+  });
+
+  // Dark map tiles for dark theme
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: ''
+  }).addTo(map);
+
+  // Try to center on user
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        map.setView([pos.coords.latitude, pos.coords.longitude], 17);
+        gpsStatus.textContent = 'GPS · READY';
+      },
+      err => {
+        gpsStatus.textContent = 'GPS · DENIED';
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  }
+}
+
+/* =========================================================
+   TRACKING
+   ========================================================= */
+function startTracking() {
+  if (isTracking || isReturning) {
+    stopAll();
+    return;
+  }
+
+  if (!navigator.geolocation) {
+    showToast('GPS tidak didukung di browser ini.');
+    return;
+  }
+
+  // Reset
+  trackPath = [];
+  positionBuffer = []; // Reset GPS smoothing buffer
+  startTime = Date.now();
+  isTracking = true;
+
+  // UI
+  statusDot.className = 'status-dot tracking';
+  statusText.innerHTML = 'Merekam jejak — <strong>aktif</strong>';
+  gpsStatus.textContent = 'GPS · TRACKING';
+  startBtn.innerHTML = '<span class="icon">■</span><span>Berhenti</span>';
+  startBtn.classList.add('stop');
+  returnBtn.disabled = true;
+  saveBtn.disabled = true;
+
+  // Clear previous path on map
+  if (pathPolyline) map.removeLayer(pathPolyline);
+  if (startMarker) map.removeLayer(startMarker);
+  if (currentMarker) map.removeLayer(currentMarker);
+  if (returnLine) map.removeLayer(returnLine);
+
+  // Watch position
+  watchId = navigator.geolocation.watchPosition(
+    onPositionUpdate,
+    onPositionError,
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000
+    }
+  );
+
+  // Start duration counter
+  durationInterval = setInterval(updateStats, 1000);
+
+  showToast('🛰️ Tunggu sinyal GPS stabil dulu, lalu mulai jalan!');
+}
+
+/* =========================================================
+   GPS FILTER PARAMETERS — Untuk hilangkan jitter saat diam
+   ========================================================= */
+const GPS_CONFIG = {
+  MAX_ACCURACY: 25,        // Tolak update kalau akurasi > 25m (sinyal jelek)
+  MIN_DISTANCE: 8,         // Jarak minimum antar titik tracking (meter)
+  MAX_SPEED: 30,           // Kecepatan maksimum yang masuk akal: 30 m/s = 108 km/jam
+  SMOOTHING_BUFFER: 3,     // Rata-ratakan 3 sample terakhir untuk smoothing
+  MIN_TIME_BETWEEN: 1500   // Minimal 1.5 detik antar titik (anti spam)
+};
+
+let positionBuffer = []; // Buffer untuk smoothing GPS
+
+function onPositionUpdate(pos) {
+  const rawLat = pos.coords.latitude;
+  const rawLng = pos.coords.longitude;
+  const accuracy = pos.coords.accuracy;
+  
+  // Update GPS status indicator dengan kualitas sinyal
+  updateGpsQuality(accuracy);
+  
+  // FILTER 1: Tolak update dengan akurasi buruk
+  if (accuracy > GPS_CONFIG.MAX_ACCURACY) {
+    // Sinyal terlalu jelek, jangan trust update ini
+    // Tetap update marker tapi jangan tambah ke trackPath
+    return;
+  }
+  
+  // FILTER 2: Smoothing - rata-ratakan beberapa update terakhir
+  positionBuffer.push({ lat: rawLat, lng: rawLng, accuracy, ts: Date.now() });
+  if (positionBuffer.length > GPS_CONFIG.SMOOTHING_BUFFER) {
+    positionBuffer.shift();
+  }
+  
+  // Hitung weighted average (akurasi lebih bagus = bobot lebih besar)
+  let totalWeight = 0;
+  let avgLat = 0;
+  let avgLng = 0;
+  positionBuffer.forEach(p => {
+    const weight = 1 / Math.max(p.accuracy, 1); // makin akurat, makin berbobot
+    avgLat += p.lat * weight;
+    avgLng += p.lng * weight;
+    totalWeight += weight;
+  });
+  const lat = avgLat / totalWeight;
+  const lng = avgLng / totalWeight;
+  
+  currentPosition = { lat, lng };
+  
+  // Update marker posisi sekarang (selalu)
+  updateCurrentMarker(lat, lng);
+
+  if (isTracking) {
+    const lastPoint = trackPath[trackPath.length - 1];
+    
+    if (!lastPoint) {
+      // Titik pertama
+      trackPath.push({ lat, lng, ts: Date.now(), accuracy });
+      updateMapPath();
+      updateStats();
+    } else {
+      const distance = haversineDistance(lastPoint.lat, lastPoint.lng, lat, lng);
+      const timeDiff = (Date.now() - lastPoint.ts) / 1000; // detik
+      const speed = distance / Math.max(timeDiff, 0.1); // m/s
+      
+      // FILTER 3: Jarak minimum harus lebih besar dari akurasi GPS
+      // Kalau jarak < akurasi, kemungkinan besar cuma jitter
+      const minDistanceForThisUpdate = Math.max(GPS_CONFIG.MIN_DISTANCE, accuracy * 0.5);
+      
+      // FILTER 4: Cek waktu minimum
+      const enoughTime = timeDiff * 1000 >= GPS_CONFIG.MIN_TIME_BETWEEN;
+      
+      // FILTER 5: Cek kecepatan masuk akal (anti teleport)
+      const reasonableSpeed = speed < GPS_CONFIG.MAX_SPEED;
+      
+      if (distance >= minDistanceForThisUpdate && enoughTime && reasonableSpeed) {
+        trackPath.push({ lat, lng, ts: Date.now(), accuracy });
+        updateMapPath();
+        updateStats();
+
+        if (trackPath.length >= 2) {
+          returnBtn.disabled = false;
+          saveBtn.disabled = false;
+        }
+      }
+    }
+  }
+
+  if (isReturning) {
+    updateReturnInfo();
+  }
+}
+
+function updateGpsQuality(accuracy) {
+  let quality = '';
+  let color = '';
+  
+  if (accuracy <= 10) {
+    quality = 'EXCELLENT';
+    color = 'var(--green)';
+  } else if (accuracy <= 20) {
+    quality = 'GOOD';
+    color = 'var(--gold)';
+  } else if (accuracy <= 35) {
+    quality = 'FAIR';
+    color = 'var(--accent)';
+  } else {
+    quality = 'POOR';
+    color = 'var(--red)';
+  }
+  
+  gpsStatus.innerHTML = `GPS · <span style="color:${color}">±${Math.round(accuracy)}m ${quality}</span>`;
+}
+
+function onPositionError(err) {
+  let msg = 'Error GPS';
+  if (err.code === 1) msg = 'Akses lokasi ditolak. Izinkan di setting browser.';
+  else if (err.code === 2) msg = 'Lokasi tidak tersedia.';
+  else if (err.code === 3) msg = 'Timeout — sinyal GPS lemah.';
+  showToast(msg);
+  gpsStatus.textContent = 'GPS · ERROR';
+}
+
+function updateMapPath() {
+  if (trackPath.length === 0) return;
+
+  // Start marker
+  if (!startMarker) {
+    const startIcon = L.divIcon({
+      className: '',
+      html: '<div class="marker-start" style="width:18px; height:18px;"></div>',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    startMarker = L.marker([trackPath[0].lat, trackPath[0].lng], { icon: startIcon })
+      .addTo(map)
+      .bindPopup('🟢 Titik Awal');
+  }
+
+  // Path polyline
+  const latlngs = trackPath.map(p => [p.lat, p.lng]);
+  if (pathPolyline) {
+    pathPolyline.setLatLngs(latlngs);
+  } else {
+    pathPolyline = L.polyline(latlngs, {
+      color: '#d4a55c',
+      weight: 4,
+      opacity: 0.85,
+      dashArray: '6, 4',
+      lineJoin: 'round'
+    }).addTo(map);
+  }
+
+  // Auto-fit map: hanya pan kalau marker mendekati pinggir map
+  // Ini mencegah map "bergerak-gerak" terus karena GPS jitter
+  if (trackPath.length === 2) {
+    // Pertama kali: fit semua jejak
+    map.fitBounds(pathPolyline.getBounds(), { padding: [40, 40] });
+  } else if (trackPath.length > 2) {
+    // Hanya pan kalau posisi current keluar dari area visible
+    const lastPos = trackPath[trackPath.length - 1];
+    const bounds = map.getBounds();
+    const isVisible = bounds.contains([lastPos.lat, lastPos.lng]);
+    
+    // Cek apakah dekat pinggir (dalam 20% dari edge)
+    const center = map.getCenter();
+    const ne = bounds.getNorthEast();
+    const sw = bounds.getSouthWest();
+    const latRange = ne.lat - sw.lat;
+    const lngRange = ne.lng - sw.lng;
+    const distFromCenter = Math.max(
+      Math.abs(lastPos.lat - center.lat) / latRange,
+      Math.abs(lastPos.lng - center.lng) / lngRange
+    );
+    
+    // Hanya pan kalau marker keluar atau >40% jauh dari center
+    if (!isVisible || distFromCenter > 0.4) {
+      map.panTo([lastPos.lat, lastPos.lng], { animate: true, duration: 0.5 });
+    }
+  }
+}
+
+function updateCurrentMarker(lat, lng) {
+  const currentIcon = L.divIcon({
+    className: '',
+    html: '<div class="marker-current" style="width:20px; height:20px;"></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+
+  if (currentMarker) {
+    currentMarker.setLatLng([lat, lng]);
+  } else {
+    currentMarker = L.marker([lat, lng], { icon: currentIcon, zIndexOffset: 1000 })
+      .addTo(map)
+      .bindPopup('🔴 Posisimu Sekarang');
+  }
+}
+
+function updateStats() {
+  document.getElementById('statPoints').querySelector('.stat-value').textContent = trackPath.length;
+
+  let totalDist = 0;
+  for (let i = 1; i < trackPath.length; i++) {
+    totalDist += haversineDistance(
+      trackPath[i - 1].lat, trackPath[i - 1].lng,
+      trackPath[i].lat, trackPath[i].lng
+    );
+  }
+
+  const distEl = document.getElementById('statDistance').querySelector('.stat-value');
+  if (totalDist >= 1000) {
+    distEl.innerHTML = `${(totalDist / 1000).toFixed(2)}<span class="unit">km</span>`;
+  } else {
+    distEl.innerHTML = `${Math.round(totalDist)}<span class="unit">m</span>`;
+  }
+
+  if (startTime) {
+    const dur = Math.floor((Date.now() - startTime) / 1000);
+    const mins = Math.floor(dur / 60);
+    const secs = dur % 60;
+    const durEl = document.getElementById('statTime').querySelector('.stat-value');
+    if (mins >= 60) {
+      const hrs = Math.floor(mins / 60);
+      durEl.innerHTML = `${hrs}:${String(mins % 60).padStart(2, '0')}<span class="unit">jam</span>`;
+    } else {
+      durEl.innerHTML = `${mins}:${String(secs).padStart(2, '0')}<span class="unit">m</span>`;
+    }
+  }
+}
+
+/* =========================================================
+   RETURN MODE
+   ========================================================= */
+function startReturn() {
+  if (trackPath.length < 2) {
+    showToast('Belum cukup data jejak. Berjalanlah dulu.');
+    return;
+  }
+
+  // Stop tracking, switch to return mode
+  isTracking = false;
+  isReturning = true;
+
+  // UI
+  statusDot.className = 'status-dot returning';
+  statusText.innerHTML = 'Mode pulang — <strong>ikuti panah</strong>';
+  startBtn.innerHTML = '<span class="icon">●</span><span>Selesai Pulang</span>';
+  startBtn.classList.remove('stop');
+  startBtn.classList.add('return');
+  directionPanel.classList.add('show');
+
+  // Highlight distance stat
+  document.getElementById('statDistance').classList.add('highlight');
+
+  // Try to enable device orientation (for compass)
+  enableCompass();
+
+  updateReturnInfo();
+  showToast('Mode pulang aktif. Ikuti panah merah!');
+}
+
+function updateReturnInfo() {
+  if (!currentPosition || trackPath.length === 0) return;
+
+  const startPoint = trackPath[0];
+  const dist = haversineDistance(
+    currentPosition.lat, currentPosition.lng,
+    startPoint.lat, startPoint.lng
+  );
+
+  // Distance display
+  if (dist >= 1000) {
+    returnDistance.innerHTML = `${(dist / 1000).toFixed(2)}<span class="unit">km</span>`;
+  } else {
+    returnDistance.innerHTML = `${Math.round(dist)}<span class="unit">m</span>`;
+  }
+
+  // Bearing calculation
+  const bearing = calculateBearing(
+    currentPosition.lat, currentPosition.lng,
+    startPoint.lat, startPoint.lng
+  );
+
+  // Compass direction
+  const compassDir = bearingToCompass(bearing);
+  returnBearing.textContent = `${compassDir} • ${Math.round(bearing)}°`;
+
+  // Rotate arrow (relative to device heading if available)
+  const arrowRotation = bearing - lastDeviceHeading;
+  directionArrow.style.transform = `translate(-50%, -100%) rotate(${arrowRotation}deg)`;
+
+  // Show return line on map
+  if (returnLine) map.removeLayer(returnLine);
+  returnLine = L.polyline(
+    [[currentPosition.lat, currentPosition.lng], [startPoint.lat, startPoint.lng]],
+    { color: '#ff6b3d', weight: 2, opacity: 0.6, dashArray: '10, 6' }
+  ).addTo(map);
+
+  // Arrived check
+  if (dist < 10) {
+    showToast('🎉 Kamu sudah sampai titik awal!');
+    statusText.innerHTML = '<strong>Sampai tujuan!</strong> 🎉';
+  }
+}
+
+function enableCompass() {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+
+    DeviceOrientationEvent.requestPermission().then(response => {
+      if (response === 'granted') {
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    }).catch(() => {});
+  } else if ('DeviceOrientationEvent' in window) {
+    // Android
+    window.addEventListener('deviceorientationabsolute', handleOrientation);
+    window.addEventListener('deviceorientation', handleOrientation);
+  }
+}
+
+function handleOrientation(event) {
+  let heading = event.alpha;
+  if (event.webkitCompassHeading !== undefined) {
+    heading = event.webkitCompassHeading;
+  } else if (heading !== null) {
+    heading = 360 - heading;
+  }
+  if (heading !== null && !isNaN(heading)) {
+    lastDeviceHeading = heading;
+    if (isReturning) updateReturnInfo();
+  }
+}
+
+/* =========================================================
+   STOP / FINISH
+   ========================================================= */
+function stopAll() {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  if (durationInterval) {
+    clearInterval(durationInterval);
+    durationInterval = null;
+  }
+
+  isTracking = false;
+  isReturning = false;
+
+  statusDot.className = 'status-dot';
+  statusText.innerHTML = 'Berhenti — <strong>tap mulai</strong> untuk trip baru';
+  gpsStatus.textContent = 'GPS · IDLE';
+  startBtn.innerHTML = '<span class="icon">●</span><span>Mulai Merekam</span>';
+  startBtn.classList.remove('stop', 'return');
+  directionPanel.classList.remove('show');
+  document.getElementById('statDistance').classList.remove('highlight');
+}
+
+/* =========================================================
+   SAVED TRIPS (localStorage)
+   ========================================================= */
+function loadSavedTrips() {
+  try {
+    return JSON.parse(localStorage.getItem('trackback_trips') || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function persistTrips(trips) {
+  localStorage.setItem('trackback_trips', JSON.stringify(trips));
+}
+
+function renderSavedTrips() {
+  const trips = loadSavedTrips();
+  savedCount.textContent = String(trips.length).padStart(2, '0');
+
+  if (trips.length === 0) {
+    savedList.innerHTML = '<div class="empty-state">Belum ada trip tersimpan.<br>Rekam jejak pertamamu!</div>';
+    return;
+  }
+
+  savedList.innerHTML = trips.map((trip, idx) => {
+    const date = new Date(trip.savedAt);
+    const dateStr = `${date.getDate()}/${date.getMonth() + 1}/${String(date.getFullYear()).slice(-2)}`;
+    let distText = '';
+    if (trip.distance >= 1000) {
+      distText = `${(trip.distance / 1000).toFixed(1)}km`;
+    } else {
+      distText = `${Math.round(trip.distance)}m`;
+    }
+
+    return `
+      <div class="saved-trip">
+        <div class="trip-info" onclick="loadTrip(${idx})">
+          <div class="trip-name">${escapeHtml(trip.name)}</div>
+          <div class="trip-meta">${dateStr} · ${trip.points} titik · ${distText}</div>
+        </div>
+        <div class="trip-actions">
+          <button class="trip-btn" onclick="loadTrip(${idx})">Buka</button>
+          <button class="trip-btn delete" onclick="deleteTrip(${idx})">Hapus</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openSaveModal() {
+  if (trackPath.length < 2) {
+    showToast('Belum ada jejak untuk disimpan.');
+    return;
+  }
+  saveModal.classList.add('show');
+  tripNameInput.value = '';
+  setTimeout(() => tripNameInput.focus(), 100);
+}
+
+function closeSaveModal() {
+  saveModal.classList.remove('show');
+}
+
+function confirmSave() {
+  const name = tripNameInput.value.trim() || `Trip ${new Date().toLocaleString('id-ID')}`;
+
+  let totalDist = 0;
+  for (let i = 1; i < trackPath.length; i++) {
+    totalDist += haversineDistance(
+      trackPath[i - 1].lat, trackPath[i - 1].lng,
+      trackPath[i].lat, trackPath[i].lng
+    );
+  }
+
+  const trip = {
+    name,
+    path: trackPath,
+    distance: totalDist,
+    points: trackPath.length,
+    savedAt: Date.now()
+  };
+
+  const trips = loadSavedTrips();
+  trips.unshift(trip);
+  persistTrips(trips);
+
+  closeSaveModal();
+  renderSavedTrips();
+  showToast(`Trip "${name}" tersimpan!`);
+}
+
+function loadTrip(idx) {
+  const trips = loadSavedTrips();
+  const trip = trips[idx];
+  if (!trip) return;
+
+  // Load to map
+  trackPath = trip.path;
+
+  // Clear & redraw
+  if (pathPolyline) map.removeLayer(pathPolyline);
+  if (startMarker) map.removeLayer(startMarker);
+  if (returnLine) map.removeLayer(returnLine);
+
+  startMarker = null;
+  pathPolyline = null;
+  updateMapPath();
+  updateStats();
+
+  // Fit bounds
+  if (pathPolyline) {
+    map.fitBounds(pathPolyline.getBounds(), { padding: [40, 40] });
+  }
+
+  showToast(`Trip "${trip.name}" dimuat. Tap PULANG untuk navigasi.`);
+  returnBtn.disabled = false;
+}
+
+function deleteTrip(idx) {
+  if (!confirm('Hapus trip ini?')) return;
+  const trips = loadSavedTrips();
+  trips.splice(idx, 1);
+  persistTrips(trips);
+  renderSavedTrips();
+  showToast('Trip dihapus.');
+}
+
+/* =========================================================
+   UTILS
+   ========================================================= */
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000; // meters
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function calculateBearing(lat1, lng1, lat2, lng2) {
+  const toRad = x => x * Math.PI / 180;
+  const toDeg = x => x * 180 / Math.PI;
+  const dLng = toRad(lng2 - lng1);
+  const y = Math.sin(dLng) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLng);
+  let bearing = toDeg(Math.atan2(y, x));
+  return (bearing + 360) % 360;
+}
+
+function bearingToCompass(bearing) {
+  const dirs = ['Utara', 'Timur Laut', 'Timur', 'Tenggara', 'Selatan', 'Barat Daya', 'Barat', 'Barat Laut'];
+  const idx = Math.round(bearing / 45) % 8;
+  return dirs[idx];
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+window.addEventListener('load', () => {
+  initMap();
+  renderSavedTrips();
+  
+  // Hide splash screen setelah load selesai
+  setTimeout(() => {
+    const splash = document.getElementById('splash');
+    if (splash) {
+      splash.classList.add('hide');
+      setTimeout(() => splash.remove(), 600);
+    }
+  }, 1200);
+});
+
+/* =========================================================
+   PWA — Service Worker & Install
+   ========================================================= */
+
+// Register service worker untuk fungsi offline
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('✓ Service Worker terdaftar'))
+      .catch(err => console.log('Service Worker error:', err));
+  });
+}
+
+// Install prompt handling (Android & Desktop)
+let deferredInstallPrompt = null;
+const installBanner = document.getElementById('installBanner');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  
+  // Tampilkan banner install kalau belum ditolak sebelumnya
+  if (!localStorage.getItem('trackback_install_dismissed')) {
+    setTimeout(() => {
+      installBanner.classList.add('show');
+    }, 3000);
+  }
+});
+
+function triggerInstall() {
+  if (deferredInstallPrompt) {
+    // Android / Desktop Chrome
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then((choice) => {
+      if (choice.outcome === 'accepted') {
+        showToast('Aplikasi berhasil diinstall! 🎉');
+      }
+      deferredInstallPrompt = null;
+      installBanner.classList.remove('show');
+    });
+  } else if (isIOS() && !isInStandaloneMode()) {
+    // iOS Safari - tampilkan instruksi manual
+    document.getElementById('iosInstructions').classList.add('show');
+    installBanner.classList.remove('show');
+  } else {
+    showToast('Aplikasi sudah terinstall atau browser tidak mendukung.');
+  }
+}
+
+function dismissInstall() {
+  installBanner.classList.remove('show');
+  localStorage.setItem('trackback_install_dismissed', '1');
+}
+
+function closeIosInstructions() {
+  document.getElementById('iosInstructions').classList.remove('show');
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+function isInStandaloneMode() {
+  return ('standalone' in window.navigator) && window.navigator.standalone ||
+         window.matchMedia('(display-mode: standalone)').matches;
+}
+
+// Untuk iOS, tampilkan install banner kalau belum standalone
+window.addEventListener('load', () => {
+  if (isIOS() && !isInStandaloneMode() && !localStorage.getItem('trackback_install_dismissed')) {
+    setTimeout(() => {
+      installBanner.classList.add('show');
+    }, 3000);
+  }
+});
+
+// Detect kalau berhasil terinstall
+window.addEventListener('appinstalled', () => {
+  installBanner.classList.remove('show');
+  showToast('🎉 Track-Back berhasil diinstall!');
+});
+
+// Sembunyikan UI yang tidak perlu kalau sudah dalam standalone mode
+if (isInStandaloneMode()) {
+  document.documentElement.classList.add('standalone');
+}
+</script>
+</body>
+</html>
