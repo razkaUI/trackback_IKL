@@ -1,0 +1,27 @@
+{
+  "name": "TRACK-BACK",
+  "short_name": "TrackBack",
+  "description": "Benang Theseus digital - aplikasi pelacak jejak GPS untuk tidak nyasar di tempat asing",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1117",
+  "theme_color": "#ff6b3d",
+  "lang": "id",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["navigation", "travel", "utilities"]
+}
